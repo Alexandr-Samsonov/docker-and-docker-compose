@@ -1,0 +1,86 @@
+version: '3'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: docker-and-docker-compose-frontend-service
+    command: serve -s build -l 3000
+#    ports:
+#      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - docker-and-docker-compose-network
+
+  api:
+    build: ./api
+    container_name: docker-and-docker-compose-api-service
+    command: npm run start
+    restart: unless-stopped
+#    ports:         // после появления nginx, все распределения по сервисам и портам происходит через него
+#      - "3001:3001"
+    environment:
+      - PORT=3001
+#      - HOST=http://store-bot.ru
+      - MONGO_URL=mongodb://api_db:27017/api
+      - AUTH_API_URL=http://auth:3002/api
+    depends_on:
+      - api_db
+    networks:
+      - docker-and-docker-compose-network
+
+  auth:
+    build: ./auth
+    container_name: docker-and-docker-compose-auth-service
+    command: npm run start
+    restart: unless-stopped
+#    ports:         // после появления nginx, все распределения по сервисам и портам происходит через него
+#      - "3002:3002"
+    environment:
+      - PORT=3002
+#      - HOST=http://store-bot.ru
+      - MONGO_URL=mongodb://auth_db:27017/auth
+      - API_URL=http://api:3001/api
+    depends_on:
+      - auth_db
+    networks:
+      - docker-and-docker-compose-network
+
+  api_db:
+    image: mongo:latest
+    container_name: docker-and-docker-compose-api-db-service
+    volumes:
+      - mongodb_api:/data/db
+    networks:
+      - docker-and-docker-compose-network
+
+  auth_db:
+    image: mongo:latest
+    container_name: docker-and-docker-compose-auth-db-service
+    volumes:
+      - mongodb_auth:/data/db
+    networks:
+      - docker-and-docker-compose-network
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: docker-and-docker-compose-nginx-service
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf.prod:/etc/nginx/conf.d/nginx.conf
+    depends_on:
+      - frontend
+      - api
+      - auth
+    networks:
+      - docker-and-docker-compose-network
+
+volumes:
+  mongodb_api:
+  mongodb_auth:
+
+networks:
+  docker-and-docker-compose-network:
+    driver: bridge
